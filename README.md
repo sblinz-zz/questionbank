@@ -2,7 +2,7 @@
 
 ## Project Description
 
-A machine learning library for test question data. Analyze, recommend effective questions, and predict student responses.
+A machine learning library for analyzing test question data. Analyze, recommend effective questions, and predict student responses.
 
 ## Design Notes
 

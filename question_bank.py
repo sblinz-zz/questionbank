@@ -2,7 +2,7 @@
 ###################################################################################################
 #
 # The Question Bank
-#	- A machine learning library for test question data
+#	- A machine learning library for analyzing student test question data
 #	- Analyze, Recommend Effective Questions, Predict Student Responses
 # 
 # By Sam Blinstein, March-April 2015
