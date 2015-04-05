@@ -15,28 +15,37 @@ from scipy.interpolate import UnivariateSpline
 from scipy.stats import gaussian_kde
 import numpy as np
 
-def PlotSeriesHist(ser, title, xlabel, ylabel, plot_fit=True):
-	plt.hist(ser.values, color='blue', histtype='bar', label=xlabel)
+def series_hist(ser, title, xlabel):
+	"""
+	Plot histogram of Series object and approximating Guassian KDE PDF
+	"""
+	fig, ax1 = plt.subplots()
 
-	if plot_fit:
-		hist, bins = np.histogram(ser.values)
-		#convert bin edges to centers for fitting
-		bins = bins[:-1] + (bins[1] - bins[0])/2			
-		f = UnivariateSpline(bins, hist)
-		plt.plot(bins, f(bins), "--", color='green', linewidth=2, label="Fit")
+	n, bins, patches = ax1.hist(ser.values, color='burlywood', histtype='bar', label=xlabel)
+	xs = np.linspace(bins[0], bins[-1], 200)
+
+	ax1.set_xlabel(xlabel)
+	ax1.set_ylabel("Frequency", color='burlywood')
+
+	density = gaussian_kde(ser.values)
+
+	ax2 = ax1.twinx()
+	ax2.plot(xs,density(xs), color='crimson', linewidth=2, label="Fit")
+	ax2.set_ylabel('Gaussian KDE', color='crimson')
+
 	plt.title(title)
-	plt.xlabel(xlabel)
-	plt.ylabel(ylabel)
-	plt.legend()
 	plt.show()
 
-def PlotSeriesScatter(ser_x, ser_y, title, xlabel, ylabel, jitter=None, alpha=None):
+
+def series_scatter(ser_x, ser_y, title, xlabel, ylabel, jitter=None, alpha=None):
+	"""
+	Plot scatter plot of Series objects with density coloring
+	"""
 	if jitter != None:
 		x = ser_x + np.random.uniform(-jitter, jitter, len(ser_x))
 		title += " (jitter = " + str(jitter) + ")"
 	else:
 		x = ser_x
-
 
 	stack = np.vstack([x.values, ser_y.values])
 	colors = gaussian_kde(stack)(stack)

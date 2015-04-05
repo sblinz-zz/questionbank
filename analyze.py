@@ -11,13 +11,13 @@
 
 import pandas as pd
 
-def NormalizeScores(df, max_scores):
+def normalize_scores(df, max_scores):
 	"""
 	Replace each score with its value normalized by the max score possible on the given question
 	"""
 	return df.apply(lambda row : row/max_scores, axis=1) 
 
-def GetAuxScoreData(df):
+def get_aux_score_data(df):
 	"""
 	Derive auxiliary score data
 	"""
@@ -26,13 +26,13 @@ def GetAuxScoreData(df):
 	grades_df['total score'] = df.sum(axis=1)
 	return grades_df
 
-def GetGradesAsAverageScore(df, attempted):
+def get_grades_as_average_score(df, attempted):
 	"""
 	Compuate grades Series as average of scores on attempted questions
 	"""
 	return df.sum(axis=1)/attempted
 
-def GetGradesUsingMaxScores(df, grades_df, max_scores):
+def get_grades_using_max_scores(df, grades_df, max_scores):
 	"""
 	Compute grades Series as ratio of total score to max possible score on attempted questions
 	"""

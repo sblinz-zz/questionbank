@@ -17,8 +17,8 @@ import imp
 import pandas as pd
 import numpy as np
 
-an = imp.load_source('', 'analyze.py')
-plot = imp.load_source('', 'plot.py')
+import analyze as an
+import plot
 
 class QuestionBank:
 	"""
@@ -35,7 +35,7 @@ class QuestionBank:
 
 		self.normalized = normalized
 
-	def Reshape(self, students, questions, scores, max_scores=None):
+	def reshape(self, students, questions, scores, max_scores=None):
 		"""
 		Pivot the DF to assign student id's as index, question id's as features, and scores as values
 		If max scores are given generate a separate Series for them indexed by question id's
@@ -51,10 +51,10 @@ class QuestionBank:
 
 		self.df = self.df.pivot_table(index=students, columns=questions, values=scores)
 
-	def AddMaxScores(self, max_scores):
+	def add_max_scores(self, max_scores):
 		"""
 		Add a Series or value representing max possible score on each question
-		Assumes self.df.columns is question id's (e.g., after Reshape())
+		Assumes self.df.columns is question id's (e.g., after reshape())
 
 		Params:
 			@max_scores: Series or single value representing max possible score on each question				
@@ -72,7 +72,8 @@ class QuestionBank:
 			try:
 				if float(max_scores) <= 0:
 					max_scores = 1.0
-			except:
+
+			except TypeError:
 				max_scores = 1.0
 			self.max_scores = float(max_scores)
 
@@ -80,46 +81,52 @@ class QuestionBank:
 	Analysis Methods
 	"""
 
-	def Normalize(self):
+	def normalize(self):
 		try:
-			self.df = an.NormalizeScores(self.df, self.max_scores)
+			self.df = an.normalize_scores(self.df, self.max_scores)
 			self.normalized = True
 
 		except AttributeError:
 			print "[Err] Can't normalize scores: no maximum scores defined. Use AddMaxScores()."
 
-	def Grade(self):
+	def grade(self):
 		"""
 		Compute auxiliary score data and grades
 		If scores were normalized or max scores are not defined, report accuracy as average score on attempted questions
 		Otherwise report accuracy as the ratio of total score to max possible score on attempted questions
 		"""
-		self.grades_df = an.GetAuxScoreData(self.df)
+		self.grades_df = an.get_aux_score_data(self.df)
 
 		if not self.normalized:
 			try:
-				self.grades_df['max score'], self.grades_df['grade'] = an.GetGradesUsingMaxScores(self.df, self.grades_df, self.max_scores)
+				self.grades_df['max score'], self.grades_df['grade'] = an.get_grades_using_max_scores(self.df, self.grades_df, self.max_scores)
 				return
+
 			except AttributeError:
+				#if max scores not defined, compuate grade using average score as in normalized case
 				pass
 
-		self.grades_df['grade'] = an.GetGradesAsAverageScore(self.df, self.grades_df['attempted'])
+		self.grades_df['grade'] = an.get_grades_as_average_score(self.df, self.grades_df['attempted'])
 
 	"""
 	Plot Methods
 	"""
 
-	def PlotHists(self, plot_total_scores=False):
+	def plot_hists(self, plot_total_scores=False):
 		"""
-		Plot histograms of number of attempted questions, accuracy, and total scores (optional)
+		Histograms of 
+			number of attempted questions
+			accuracy
+			total scores (optional)
 		"""
-		plot.PlotSeriesHist(self.grades_df['attempted'], "No. of Questions Attempted", "No. of Questions Attempted", "Freq.")
-		plot.PlotSeriesHist(self.grades_df['grade'], "Grades", "Grade", "Freq")
+		plot.series_hist(self.grades_df['attempted'], "No. of Questions Attempted", "No. of Questions Attempted")
+		plot.series_hist(self.grades_df['grade'], "Grades", "Grade")
 		if plot_total_scores:
-			plot.PlotSeriesHist(self.grades_df['total score'], "Total Scores", "Total Score", "Freq")
+			plot.series_hist(self.grades_df['total score'], "Total Scores", "Total Score")
 
-	def PlotScatter(self, jitter=None, alpha=None):
+	def plot_scatters(self, jitter=None, alpha=None):
 		"""
-		Plot scatter plot of grade vs. number of questions attempted
+		Density-colored scatter plot of 
+			grade vs. number of questions attempted
 		"""
-		plot.PlotSeriesScatter(self.grades_df['attempted'], self.grades_df['grade'], "Grades vs. No. of Questions Attempted", "No. of Questions Attempted", "Grade (%)", jitter=jitter, alpha=alpha)
+		plot.series_scatter(self.grades_df['attempted'], self.grades_df['grade'], "Grades vs. No. of Questions Attempted", "No. of Questions Attempted", "Grade (%)", jitter=jitter, alpha=alpha)
