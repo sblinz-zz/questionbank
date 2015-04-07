@@ -95,27 +95,21 @@ class DistanceCollaborativeFilter:
 		Approximate Pearson value for overlapping question scores
 		Requires single pass through data
 		"""
-		sum_xy = 0
-		sum_x = 0
-		sum_y = 0
-		sum_x2 = 0
-		sum_y2 = 0
-		n = 0
 		intersection = list(scores1.viewkeys() & scores2.viewkeys())
 		if len(intersection) != 0:
-			for question in intersection:
-				n += 1
-				x = scores1[question]
-				y = scores2[question]
-				sum_xy += x * y
-				sum_x += x
-				sum_y += y
-				sum_x2 += pow(x, 2)
-				sum_y2 += pow(y, 2)
+			n = len(intersection)
+			xs = [scores1[question] for question in intersection]
+			ys = [scores2[question] for question in intersection]
+
+			sum_xy = sum([x*y for x, y in zip(xs, ys)])
+			sum_x = sum(xs)
+			sum_y = sum(ys)
+			sum_x2 = sum([x**2 for x in xs])
+			sum_y2 = sum([y**2 for y in ys])
 		else:
 			return 0
 	
-		denom = (sqrt(sum_x2 - pow(sum_x, 2) / n)*sqrt(sum_y2 - pow(sum_y, 2) / n))
+		denom = sqrt(sum_x2 - (sum_x**2 / n))*sqrt(sum_y2 - (sum_y**2 / n))
 		if denom == 0:
 			return 0
 		else:
@@ -133,6 +127,11 @@ class DistanceCollaborativeFilter:
 			return pearsonr(x, y)[0] #pearsonr returns pearson value and p-value
 		else:
 			return 0
+
+	def minkowski_similarity(self, scores1, scores2):
+		"""
+
+		"""
 
 	def get_k_nearest_neighbors(self, student):
 		"""
@@ -164,7 +163,7 @@ class DistanceCollaborativeFilter:
 
 		for i in range(self.k):
 			totalDistance += k_nbrs[i][1]
-			print k_nbrs[i][1]
+			
 		for i in range(self.k):
 			if totalDistance != 0:
 				weight = k_nbrs[i][1] / totalDistance
