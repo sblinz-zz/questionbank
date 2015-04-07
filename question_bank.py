@@ -63,7 +63,7 @@ class QuestionBank:
 		"""
 		#If max_scores are given as a Series its index must match the question id's
 		if isinstance(max_scores, pd.Series) and self.df.columns.equals(max_scores.index):
-			#Error check the max_scores Series
+			#Clean  the max_scores Series
 			max_scores.replace([np.inf, -np.inf, np.nan], 1.0, inplace=True)
 			max_scores[max_scores <= 0] = 1.0
 			self.max_scores = max_scores
@@ -119,8 +119,8 @@ class QuestionBank:
 			accuracy
 			total scores (optional)
 		"""
-		plot.series_hist(self.grades_df['attempted'], "No. of Questions Attempted", "No. of Questions Attempted")
-		plot.series_hist(self.grades_df['grade'], "Grades", "Grade")
+		plot.series_hist(self.grades_df['attempted'], "No. of Questions Attempted")
+		plot.series_hist(self.grades_df['grade'], "Grade")
 		if plot_total_scores:
 			plot.series_hist(self.grades_df['total score'], "Total Scores", "Total Score")
 

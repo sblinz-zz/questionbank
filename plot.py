@@ -11,11 +11,10 @@
 
 from matplotlib import pyplot as plt
 from matplotlib import cm as cm
-from scipy.interpolate import UnivariateSpline
 from scipy.stats import gaussian_kde
 import numpy as np
 
-def series_hist(ser, title, xlabel):
+def series_hist(ser, xlabel):
 	"""
 	Plot histogram of Series object and approximating Guassian KDE PDF
 	"""
@@ -33,7 +32,7 @@ def series_hist(ser, title, xlabel):
 	ax2.plot(xs,density(xs), color='crimson', linewidth=2, label="Fit")
 	ax2.set_ylabel('Gaussian KDE', color='crimson')
 
-	plt.title(title)
+	plt.title(xlabel)
 	plt.show()
 
 
