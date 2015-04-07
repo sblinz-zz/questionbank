@@ -24,6 +24,7 @@ class DistanceCollaborativeFilter:
 	To Do:
 		Implement get_k_nearest_neighbors using a max heap
 		Implement automatic determination of k based on number of students/number of missing values
+		Implement Spearman rank correlation metric
 	"""
 	def __init__(self, df, metric, k, r=None):
 		"""
@@ -86,7 +87,7 @@ class DistanceCollaborativeFilter:
 			{ student1_id : { question1_id : score, question2_id : score, ... }, ... }
 
 		Take transpose because to_dict() uses columns as main keys but we assume questions are columns
-		"""
+		"""	
 		scores = df.transpose().to_dict()
 		for stu in scores:
 			scores[stu] = { key : value for key, value in scores[stu].iteritems() if pd.notnull(value) }
@@ -94,12 +95,10 @@ class DistanceCollaborativeFilter:
 
 	def fast_pearson_similarity(self, scores1, scores2):
 		"""
-		Approximate Pearson value for overlapping question scores
+		Approximate Pearson r value for overlapping question scores
 		Requires single pass through data
 
-		Params:
-			both are dictionaries of scores of the from:
-				{ question1_id : score1, question2_id : score2, ... }
+		Params: both are dictionaries of scores of the form: { question1_id : score1, question2_id : score2, ... }
 		"""
 		intersection = list(scores1.viewkeys() & scores2.viewkeys())
 		if len(intersection) != 0:
@@ -123,11 +122,9 @@ class DistanceCollaborativeFilter:
 
 	def pearson_similarity(self, scores1, scores2):
 		"""
-		Pearson value for overlapping question scores
+		Pearson r value for overlapping question scores
 
-		Params:
-		both are dictionaries of scores of the from:
-			{ question1_id : score1, question2_id : score2, ... }
+		Params: both are dictionaries of scores of the form: { question1_id : score1, question2_id : score2, ... }
 		"""
 		#Get overlapping questions
 		intersection = list(scores1.viewkeys() & scores2.viewkeys())
@@ -140,16 +137,36 @@ class DistanceCollaborativeFilter:
 
 	def minkowski_similarity(self, scores1, scores2):
 		"""
-		Params:
-		both are dictionaries of scores of the from:
-			{ question1_id : score1, question2_id : score2, ... }
-		"""
+		Minkowski distance for overlapping question scores
+		Params: both are dictionaries of scores of the form: { question1_id : score1, question2_id : score2, ... }
 
+		Note: r = 1 => Manhattan distance, r = 2 => Euclidean distance
+		"""
 		intersection = list(scores1.viewkeys() & scores2.viewkeys())
 		if len(intersection) != 0:
 			return sum([abs(scores1[question] - scores2[question])**self.r for question in intersection])
 		else:
 			return 0
+
+	def cosine_similarity(self, scores1, scores2):
+		"""
+		Cosine of angle between overlapping question score vectors
+
+		Params: both are dictionaries of scores of the form: { question1_id : score1, question2_id : score2, ... }
+		"""
+		dot_prod = lambda v, w: sum(x*y for x,y in zip(v, w))
+		norm = lambda v : sqrt(dot_prod(v, v))
+
+		intersection = list(scores1.viewkeys() & scores2.viewkeys())
+		if len(intersection) != 0:
+			xs = [scores1[question] for question in intersection]
+			ys = [scores2[question] for question in intersection]
+
+			norm_x = norm(xs)
+			norm_y = norm(ys)
+			if norm_x != 0 and norm_y != 0:
+				return dot_prod(xs,ys)/(norm_x*norm_y)
+		return 0
 
 	def get_k_nearest_neighbors(self, student):
 		"""
@@ -162,7 +179,7 @@ class DistanceCollaborativeFilter:
 		for nbr in self.scores:
 			if nbr != student:
 				distance = self.metric_fn(self.scores[nbr], self.scores[student])
-				if pd.notnull(distance):
+				if pd.notnull(distance): #because Pearson will return NaN if any std dev is 0
 					nbrs.append((nbr, distance))
 		nbrs.sort(key = lambda nbr_tuple : nbr_tuple[1], reverse=True)
 		return nbrs[:self.k]
