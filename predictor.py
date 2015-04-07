@@ -25,7 +25,7 @@ class DistanceCollaborativeFilter:
 		Implement get_k_nearest_neighbors using a max heap
 		Implement automatic determination of k based on number of students/number of missing values
 	"""
-	def __init__(self, df, metric, k, minkowski_param=None):
+	def __init__(self, df, metric, k, r=None):
 		"""
 		Assumes df is given as student id's x question id's
 			e.g., after question_bank.reshape() or pd.pivot_table()
@@ -40,22 +40,8 @@ class DistanceCollaborativeFilter:
 				parameter for Minkowski metric: 1 = Manhattan, 2 = Euclidean, etc. 
 				Throws ValueError if not (convertable to) a positive int
 		"""
-
-		#Dictionaries of dictionaries for observed scores and predicted scores
-		#{ student1_id : { question1_id : score, question2_id : score, ... }, ... }
-		self.scores = self.get_dictionary_of_valid_scores(df)
-		self.predictions = {}
-
-		try:
-			bad_k_msg = "Invalid number of neighbors parameter k: must be  a positive integer and less than number of students ."
-			if int(k) > 0:
-				self.k = int(k)
-			else:
-				raise ValueError(bad_k_msg)
-
-		except (TypeError, ValueError):
-			raise ValueError(bad_k_msg)
-
+		#Fast checks first before creating dictionaries
+		self.k = self.check_and_get_k_value(k)
 		self.metric = metric
 		if metric == 'cosine':
 			self.metric_fn = self.cosine_similarity
@@ -65,10 +51,10 @@ class DistanceCollaborativeFilter:
 			self.metric_fn = self.pearson_similarity
 		elif metric == 'minkowski':
 			try:
-				self.minkowski_param = int(minkowski_param)
+				self.r = int(r)
 				self.metric_fn = self.minkowski_similarity
 			except TypeError:
-				raise ValueError("Invalid Minkowski metric parameter: must be (convertable to) a positive integer.")	
+				raise ValueError("Invalid Minkowski metric parameter r: must be (convertable to) a positive integer.")	
 
 		else:
 			bad_metric_msg = "Invalid metric supplied for instance of DistanceCollaborativeFilter. Supported metric arguments:"
@@ -77,6 +63,22 @@ class DistanceCollaborativeFilter:
 			bad_metric_msg += "\tfast-pearson\n"
 			bad_metric_msg += "\tminkowski"
 			raise ValueError(bad_metric_msg)
+
+		#Dictionaries of dictionaries for observed scores and predicted scores
+		#{ student1_id : { question1_id : score, question2_id : score, ... }, ... }
+		self.scores = self.get_dictionary_of_valid_scores(df)
+		self.predictions = {}
+
+	def check_and_get_k_value(self, k):
+		try:
+			bad_k_msg = "Invalid number of neighbors parameter k: must be  a positive integer and less than number of students ."
+			if int(k) > 0:
+				return int(k)
+			else:
+				raise ValueError(bad_k_msg)
+
+		except (TypeError, ValueError):
+			raise ValueError(bad_k_msg)
 
 	def get_dictionary_of_valid_scores(self, df):
 		"""
@@ -94,6 +96,10 @@ class DistanceCollaborativeFilter:
 		"""
 		Approximate Pearson value for overlapping question scores
 		Requires single pass through data
+
+		Params:
+			both are dictionaries of scores of the from:
+				{ question1_id : score1, question2_id : score2, ... }
 		"""
 		intersection = list(scores1.viewkeys() & scores2.viewkeys())
 		if len(intersection) != 0:
@@ -118,6 +124,10 @@ class DistanceCollaborativeFilter:
 	def pearson_similarity(self, scores1, scores2):
 		"""
 		Pearson value for overlapping question scores
+
+		Params:
+		both are dictionaries of scores of the from:
+			{ question1_id : score1, question2_id : score2, ... }
 		"""
 		#Get overlapping questions
 		intersection = list(scores1.viewkeys() & scores2.viewkeys())
@@ -130,8 +140,16 @@ class DistanceCollaborativeFilter:
 
 	def minkowski_similarity(self, scores1, scores2):
 		"""
-
+		Params:
+		both are dictionaries of scores of the from:
+			{ question1_id : score1, question2_id : score2, ... }
 		"""
+
+		intersection = list(scores1.viewkeys() & scores2.viewkeys())
+		if len(intersection) != 0:
+			return sum([abs(scores1[question] - scores2[question])**self.r for question in intersection])
+		else:
+			return 0
 
 	def get_k_nearest_neighbors(self, student):
 		"""
@@ -163,7 +181,7 @@ class DistanceCollaborativeFilter:
 
 		for i in range(self.k):
 			totalDistance += k_nbrs[i][1]
-			
+
 		for i in range(self.k):
 			if totalDistance != 0:
 				weight = k_nbrs[i][1] / totalDistance
