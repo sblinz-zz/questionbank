@@ -18,18 +18,14 @@ class Predictor:
 	Works internally with numpy array
 	"""
 
-	def __init__(self, df, give_stats=True):
+	def __init__(self, df):
 		"""
 		Assumes DataFrame is student id's x question id's
-
-		Params:
-			@give_stats: whether to return statistics on predictions made; depends on method used
 		"""
 		self.matrix = df.as_matrix()	#numpy array
 		self.questions_idx = df.columns
 		self.students_idx = df.index
-
-		self.give_stats = give_stats	
+		self.pred_dict = {}				#dictionary of dictionaries to store predictions
 
 	def round(self, precision=0):
 		"""
@@ -39,14 +35,16 @@ class Predictor:
 		"""
 		self.matrix.around(decimals=precision)
 
-	def get_predicted_df(self):
+	def get_augmented_df(self):
 		"""
-		Returns a DataFrame built out of the internal matrix
+		Returns initial DataFrame with predictions filled in
 		"""
 		return pd.DataFrame(self.matrix, index=self.students_idx, columns=self.questions_idx)
 
-	def predict(self, method='distance', metric='cosine'):
+	def get_predicted_dict(self):
 		"""
-		Predicts 
+		Returns dictionary of predictions made
+		{ user1 : { pred_question1 : pred_score, pred_question2 : pred_score, ...}, user2 : { ... }, ... }
 		"""
+		return self.pred_dict
 
