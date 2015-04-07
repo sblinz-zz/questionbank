@@ -39,7 +39,7 @@ class QuestionBank:
 		"""
 		Pivot the DF to assign student id's as index, question id's as features, and scores as values
 		If max scores are given generate a separate Series for them indexed by question id's
-		Place NaN if no entry for a given (student, question) pair
+		Places NaN if no entry for a given (student, question) pair
 
 		Params:
 			@students, @questions, @scores: Series names in self.df containing the respective data
