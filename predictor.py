@@ -13,6 +13,7 @@
 
 import numpy as np
 import pandas as pd
+from scipy.stats import pearsonr
 from math import sqrt
 
 class DistanceCollaborativeFilter:
@@ -100,8 +101,9 @@ class DistanceCollaborativeFilter:
 		sum_x2 = 0
 		sum_y2 = 0
 		n = 0
-		for question in scores1:
-			if question in scores2:
+		intersection = list(scores1.viewkeys() & scores2.viewkeys())
+		if len(intersection) != 0:
+			for question in intersection:
 				n += 1
 				x = scores1[question]
 				y = scores2[question]
@@ -110,7 +112,7 @@ class DistanceCollaborativeFilter:
 				sum_y += y
 				sum_x2 += pow(x, 2)
 				sum_y2 += pow(y, 2)
-		if n == 0:
+		else:
 			return 0
 	
 		denom = (sqrt(sum_x2 - pow(sum_x, 2) / n)*sqrt(sum_y2 - pow(sum_y, 2) / n))
@@ -118,6 +120,19 @@ class DistanceCollaborativeFilter:
 			return 0
 		else:
 			return (sum_xy - (sum_x * sum_y) / n) / denom
+
+	def pearson_similarity(self, scores1, scores2):
+		"""
+		Pearson value for overlapping question scores
+		"""
+		#Get overlapping questions
+		intersection = list(scores1.viewkeys() & scores2.viewkeys())
+		if len(intersection) != 0:
+			x = [scores1[question] for question in intersection]
+			y = [scores2[question] for question in intersection]
+			return pearsonr(x, y)[0] #pearsonr returns pearson value and p-value
+		else:
+			return 0
 
 	def get_k_nearest_neighbors(self, student):
 		"""
@@ -130,7 +145,8 @@ class DistanceCollaborativeFilter:
 		for nbr in self.scores:
 			if nbr != student:
 				distance = self.metric_fn(self.scores[nbr], self.scores[student])
-				nbrs.append((nbr, distance))
+				if pd.notnull(distance):
+					nbrs.append((nbr, distance))
 		nbrs.sort(key = lambda nbr_tuple : nbr_tuple[1], reverse=True)
 		return nbrs[:self.k]
 
@@ -148,7 +164,7 @@ class DistanceCollaborativeFilter:
 
 		for i in range(self.k):
 			totalDistance += k_nbrs[i][1]
-
+			print k_nbrs[i][1]
 		for i in range(self.k):
 			if totalDistance != 0:
 				weight = k_nbrs[i][1] / totalDistance
@@ -180,10 +196,8 @@ class DistanceCollaborativeFilter:
 
 	def predict(self):
 		"""
-		Predict question scores for all students using k nearest neighbors
-		Return self.predictions
+		Return predicted question scores for all students using k nearest neighbors
 		"""
-
 		for student in scores:
 			self.predictions[student] = predict_student(student)
 		return self.predictions
