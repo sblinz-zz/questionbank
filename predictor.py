@@ -15,17 +15,20 @@ import numpy as np
 import pandas as pd
 from math import sqrt
 
-class DistanceCollaborativeFilter():
+class DistanceCollaborativeFilter:
 	"""
 	Implements ordinary distance-based collaborative filtering with multiple metrics
 	Adapted from: http://guidetodatamining.com/chapter-2/
 
 	To Do:
 		Implement get_k_nearest_neighbors using a max heap
-		Implement automatic determination of k based in number of students
+		Implement automatic determination of k based on number of students/number of missing values
 	"""
 	def __init__(self, df, metric, k, minkowski_param=None):
 		"""
+		Assumes df is given as student id's x question id's
+			e.g., after question_bank.reshape() or pd.pivot_table()
+
 		Params:
 			@metric: 
 				distance metric to use (as a string).
@@ -34,10 +37,24 @@ class DistanceCollaborativeFilter():
 				number of neighbors to get predictions from
 			@minkowski_param: 
 				parameter for Minkowski metric: 1 = Manhattan, 2 = Euclidean, etc. 
-				Thows ValueError if not positive int
+				Throws ValueError if not (convertable to) a positive int
 		"""
+
+		#Dictionaries of dictionaries for observed scores and predicted scores
+		#{ student1_id : { question1_id : score, question2_id : score, ... }, ... }
 		self.scores = self.get_dictionary_of_valid_scores(df)
-		self.k = k
+		self.predictions = {}
+
+		try:
+			bad_k_msg = "Invalid number of neighbors parameter k: must be  a positive integer and less than number of students ."
+			if int(k) > 0:
+				self.k = int(k)
+			else:
+				raise ValueError(bad_k_msg)
+
+		except (TypeError, ValueError):
+			raise ValueError(bad_k_msg)
+
 		self.metric = metric
 		if metric == 'cosine':
 			self.metric_fn = self.cosine_similarity
@@ -50,11 +67,10 @@ class DistanceCollaborativeFilter():
 				self.minkowski_param = int(minkowski_param)
 				self.metric_fn = self.minkowski_similarity
 			except TypeError:
-				raise ValueError("Invalid Minkowski metric parameter. Must be (convertable to) a positive integer.")	
+				raise ValueError("Invalid Minkowski metric parameter: must be (convertable to) a positive integer.")	
 
 		else:
-			bad_metric_msg = "Invalid metric supplied for instance of DistanceCollaborativeFilter.\n"
-			bad_metric_msg += "Supported metric arguments:\n"
+			bad_metric_msg = "Invalid metric supplied for instance of DistanceCollaborativeFilter. Supported metric arguments:"
 			bad_metric_msg += "\tcosine\n"
 			bad_metric_msg += "\tpearson\n"
 			bad_metric_msg += "\tfast-pearson\n"
@@ -62,23 +78,33 @@ class DistanceCollaborativeFilter():
 			raise ValueError(bad_metric_msg)
 
 	def get_dictionary_of_valid_scores(self, df):
+		"""
+		Returns dictionary of dictionaries with non-null scores as:
+			{ student1_id : { question1_id : score, question2_id : score, ... }, ... }
+
+		Take transpose because to_dict() uses columns as main keys but we assume questions are columns
+		"""
 		scores = df.transpose().to_dict()
 		for stu in scores:
 			scores[stu] = { key : value for key, value in scores[stu].iteritems() if pd.notnull(value) }
 		return scores
 
-	def fast_pearson_similarity(self, rating1, rating2):
+	def fast_pearson_similarity(self, scores1, scores2):
+		"""
+		Approximate Pearson value for overlapping question scores
+		Requires single pass through data
+		"""
 		sum_xy = 0
 		sum_x = 0
 		sum_y = 0
 		sum_x2 = 0
 		sum_y2 = 0
 		n = 0
-		for key in rating1:
-			if key in rating2:
+		for question in scores1:
+			if question in scores2:
 				n += 1
-				x = rating1[key]
-				y = rating2[key]
+				x = scores1[question]
+				y = scores2[question]
 				sum_xy += x * y
 				sum_x += x
 				sum_y += y
@@ -86,63 +112,78 @@ class DistanceCollaborativeFilter():
 				sum_y2 += pow(y, 2)
 		if n == 0:
 			return 0
-		# now compute denominator
-		denominator = (sqrt(sum_x2 - pow(sum_x, 2) / n)*sqrt(sum_y2 - pow(sum_y, 2) / n))
-		if denominator == 0:
+	
+		denom = (sqrt(sum_x2 - pow(sum_x, 2) / n)*sqrt(sum_y2 - pow(sum_y, 2) / n))
+		if denom == 0:
 			return 0
 		else:
-			return (sum_xy - (sum_x * sum_y) / n) / denominator
+			return (sum_xy - (sum_x * sum_y) / n) / denom
 
 	def get_k_nearest_neighbors(self, student):
 		"""
 		Get k of the nearest neighbors by the given metric sorted from closest
-		Implement with a max heap of size k for better efficieny
+		
+		To Do:
+			Implement with a max heap of size k for better efficieny
 		"""
 		nbrs = []
 		for nbr in self.scores:
 			if nbr != student:
-				distance = self.metric_fn(self.scores[nbr],self.scores[student])
+				distance = self.metric_fn(self.scores[nbr], self.scores[student])
 				nbrs.append((nbr, distance))
 		nbrs.sort(key = lambda nbr_tuple : nbr_tuple[1], reverse=True)
+		return nbrs[:self.k]
 
-		#return up to k in case k exceeds number of students-1
-		return nbrs[:max(self.k, len(nbrs))]
+	def predict_student(self, student):
+		"""
+		Predict question scores for a given student using weighted average of scores of k nearest neighbors
 
-	def predict(self, user):
-		recommendations = {}
-		# first get list of users  ordered by nearness
-		nearest = self.get_k_nearest_neighbors(user)
-		#
-		# now get the ratings for the user
-		#
-		userRatings = self.scores[user]
-		#
-		# determine the total distance
+		To Do:
+			If totalDistance == 0 use simple average of all contributing neighbor scores, not max
+		"""
+		predictions = {}
+		k_nbrs = self.get_k_nearest_neighbors(student)
+		stu_scores = self.scores[student]
 		totalDistance = 0.0
+
 		for i in range(self.k):
-			totalDistance += nearest[i][1]
-		# now iterate through the k nearest neighbors
-		# accumulating their ratings
+			totalDistance += k_nbrs[i][1]
+
 		for i in range(self.k):
-			# compute slice of pie 
-			weight = nearest[i][1] / totalDistance
-			# get the name of the person
-			name = nearest[i][0]
-			# get the ratings for this person
-			neighborRatings = self.scores[name]
-			# get the name of the person
-			# now find bands neighbor rated that user didn't
-			for artist in neighborRatings:
-				if not artist in userRatings:
-					if artist not in recommendations:
-						recommendations[artist] = (neighborRatings[artist]* weight)
+			if totalDistance != 0:
+				weight = k_nbrs[i][1] / totalDistance
+			else:
+				#set dummy value and keep best prediction found
+				weight = -1 
+			
+			nbr = k_nbrs[i][0]
+			nbr_scores = self.scores[nbr]
+
+			#Iterate over neighbors scores which student has not answered
+			#Predict student answer using weighted or average of neighbors scores on that question
+			for question in nbr_scores:
+				if question not in stu_scores:
+					if question not in predictions:
+						if weight != -1:
+							predictions[question] = nbr_scores[question]*weight
+						else:
+							predictions[question] = nbr_scores[question]
 					else:
-						recommendations[artist] = (recommendations[artist]+ neighborRatings[artist]* weight)
-		# now make list from dictionary
-		recommendations = list(recommendations.items())
-		#recommendations = [(self.convertProductID2name(k), v) for (k, v) in recommendations]
-		# finally sort and return
-		recommendations.sort(key=lambda artistTuple: artistTuple[1],reverse = True)
-		# Return the first n items
-		#return recommendations[:self.n]
-		return recommendations
+						if weight != -1:
+							predictions[question] = predictions[question] + nbr_scores[question]*weight
+						else:
+							#If totalDistance was 0 keep the best score predicted by these "exact match" neighbors
+							#Should take average over all contributing "exact match" neighbors
+							predictions[question] = max(predictions[question], nbr_scores[question])
+
+		return predictions
+
+	def predict(self):
+		"""
+		Predict question scores for all students using k nearest neighbors
+		Return self.predictions
+		"""
+
+		for student in scores:
+			self.predictions[student] = predict_student(student)
+		return self.predictions

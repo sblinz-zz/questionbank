@@ -12,13 +12,11 @@
 #
 ###################################################################################################
 """
-
-import imp
-import pandas as pd
 import numpy as np
-
+import pandas as pd
 import analyze as an
 import plot
+import predictor as pred
 
 class QuestionBank:
 	"""
