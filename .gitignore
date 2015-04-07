@@ -2,5 +2,5 @@
 *.csv
 *.ipynb
 .ipynb_checkpoints/
-ref/
 recommender.py
+mf.py
