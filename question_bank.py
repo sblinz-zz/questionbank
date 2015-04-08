@@ -23,17 +23,19 @@ class QuestionBank:
 	Main wrapper for session
 	"""
 
-	def __init__(self, df=None, normalized=False):
-		self.df = df
-		self.normalized = normalized
+	"""
+	Setup
+	"""
 
-	def __init__(self, filepath, type='csv', normalized=False):
+	def __init__(self, type='csv', filepath=None, df=None, normalized=False):
 		if type == 'csv':
 			self.df = pd.DataFrame.from_csv(filepath)
+		elif type =='df':
+			self.df = df
 
 		self.normalized = normalized
 
-	def reshape(self, students, questions, scores, max_scores=None):
+	def reshape(self, students, questions, scores, q_ratings=None):
 		"""
 		Pivot the DF to assign student id's as index, question id's as features, and scores as values
 		If max scores are given generate a separate Series for them indexed by question id's
@@ -41,11 +43,13 @@ class QuestionBank:
 
 		Params:
 			@students, @questions, @scores: Series names in self.df containing the respective data
+			@q_ratings: Series name in self.df containing the question difficulty rating
 			@max_scores: Series name in self.df containing the max possible score on the given question
 		"""
 		self.df.reset_index(inplace=True)
-		if max_scores != None:
-			self.max_scores = self.df.pivot_table(index=questions, values=max_scores, aggfun=max)
+		if q_ratings != None:
+			self.q_ratings = pd.DataFrame(self.df.pivot_table(index=questions, values=q_ratings))
+			self.q_ratings.columns= ['difficulty rating']
 
 		self.df = self.df.pivot_table(index=students, columns=questions, values=scores)
 
@@ -61,7 +65,7 @@ class QuestionBank:
 		"""
 		#If max_scores are given as a Series its index must match the question id's
 		if isinstance(max_scores, pd.Series) and self.df.columns.equals(max_scores.index):
-			#Clean  the max_scores Series
+			#Clean the max_scores Series
 			max_scores.replace([np.inf, -np.inf, np.nan], 1.0, inplace=True)
 			max_scores[max_scores <= 0] = 1.0
 			self.max_scores = max_scores
@@ -75,6 +79,14 @@ class QuestionBank:
 				max_scores = 1.0
 			self.max_scores = float(max_scores)
 
+	def make_question_diff_ser(self, questions, diff):
+		"""
+		Add a Series with question id's as index and difficult rating as values
+
+		Params:
+			@diff: Series name in self.df containing question difficulty
+		"""
+
 	"""
 	Analysis Methods
 	"""
@@ -87,13 +99,13 @@ class QuestionBank:
 		except AttributeError:
 			print "[Err] Can't normalize scores: no maximum scores defined. Use AddMaxScores()."
 
-	def grade(self):
+	def grade(self, suppress_total_score=True):
 		"""
 		Compute auxiliary score data and grades
 		If scores were normalized or max scores are not defined, report accuracy as average score on attempted questions
 		Otherwise report accuracy as the ratio of total score to max possible score on attempted questions
 		"""
-		self.grades_df = an.get_aux_score_data(self.df)
+		self.grades_df = an.get_aux_score_data(self.df, suppress_total_score=suppress_total_score)
 
 		if not self.normalized:
 			try:
@@ -110,15 +122,16 @@ class QuestionBank:
 	Plot Methods
 	"""
 
-	def plot_hists(self, plot_total_scores=False):
+	def plot_hists(self, plot_num_attempted=True, plot_total_scores=False):
 		"""
 		Histograms of 
-			number of attempted questions
-			accuracy
+			grades
+			number of attempted questions (optional)
 			total scores (optional)
 		"""
-		plot.series_hist(self.grades_df['attempted'], "No. of Questions Attempted")
 		plot.series_hist(self.grades_df['grade'], "Grade")
+		if plot_num_attempted:
+			plot.series_hist(self.grades_df['attepmted'], "No. of Questions Attempted")
 		if plot_total_scores:
 			plot.series_hist(self.grades_df['total score'], "Total Scores", "Total Score")
 
@@ -128,3 +141,7 @@ class QuestionBank:
 			grade vs. number of questions attempted
 		"""
 		plot.series_scatter(self.grades_df['attempted'], self.grades_df['grade'], "Grades vs. No. of Questions Attempted", "No. of Questions Attempted", "Grade (%)", jitter=jitter, alpha=alpha)
+
+	"""
+	Prediction Methods
+	"""

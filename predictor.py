@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 from math import sqrt
+from heapq import *
 
 class DistanceCollaborativeFilter:
 	"""
@@ -26,36 +27,48 @@ class DistanceCollaborativeFilter:
 		Implement automatic determination of k based on number of students/number of missing values
 		Implement Spearman rank correlation metric
 	"""
-	def __init__(self, df, metric, k, r=None):
-		"""
-		Assumes df is given as student id's x question id's
-			e.g., after question_bank.reshape() or pd.pivot_table()
 
-		Params:
-			@metric: 
-				distance metric to use (as a string).
-				Throws ValueError if unmatched
-			@k:
-				number of neighbors to get predictions from
-			@minkowski_param: 
-				parameter for Minkowski metric: 1 = Manhattan, 2 = Euclidean, etc. 
-				Throws ValueError if not (convertable to) a positive int
+	"""
+	Setup
+	"""
+	def __init__(self, df):
 		"""
-		#Fast checks first before creating dictionaries
-		self.k = self.check_and_get_k_value(k)
-		self.metric = metric
+		Assumes df is given as student id's x question id's e.g., after question_bank.reshape() or pd.pivot_table()
+		"""
+		#Dictionaries of dictionaries for observed scores and predicted scores
+		#{ student1_id : { question1_id : score, question2_id : score, ... }, ... }
+		self.scores = self.get_dictionary_of_valid_scores(df)
+		self.predictions = {}
+
+	def check_and_get_k_value(self, k):
+		try:
+			bad_k_msg = "Invalid number of neighbors parameter k: "
+			bad_k_msg += "must be a positive integer and (should be a lot) less than number of students."
+			if int(k) > 0:
+				return int(k)
+			else:
+				raise ValueError(bad_k_msg)
+
+		except (TypeError, ValueError):
+			raise ValueError(bad_k_msg)
+
+	def check_and_get_metric(self, metric, r=None):
 		if metric == 'cosine':
-			self.metric_fn = self.cosine_similarity
+			metric_fn = self.cosine_distance
 		elif metric == 'fast-pearson':
-			self.metric_fn = self.fast_pearson_similarity
+			metric_fn = self.fast_pearson_distance
 		elif metric == 'pearson':
-			self.metric_fn = self.pearson_similarity
+			metric_fn = self.pearson_distance
 		elif metric == 'minkowski':
 			try:
-				self.r = int(r)
-				self.metric_fn = self.minkowski_similarity
-			except TypeError:
-				raise ValueError("Invalid Minkowski metric parameter r: must be (convertable to) a positive integer.")	
+				if int(r) > 0:
+					r = int(r)
+				else:
+					bad_r_msg = "Invalid Minkowski metric parameter r: must be (convertable to) a positive integer."
+					raise ValueError
+				metric_fn = self.minkowski_distance
+			except (TypeError, ValueError):
+				raise ValueError(bad_r_msg)	
 
 		else:
 			bad_metric_msg = "Invalid metric supplied for instance of DistanceCollaborativeFilter. Supported metric arguments:"
@@ -65,21 +78,7 @@ class DistanceCollaborativeFilter:
 			bad_metric_msg += "\tminkowski"
 			raise ValueError(bad_metric_msg)
 
-		#Dictionaries of dictionaries for observed scores and predicted scores
-		#{ student1_id : { question1_id : score, question2_id : score, ... }, ... }
-		self.scores = self.get_dictionary_of_valid_scores(df)
-		self.predictions = {}
-
-	def check_and_get_k_value(self, k):
-		try:
-			bad_k_msg = "Invalid number of neighbors parameter k: must be  a positive integer and less than number of students ."
-			if int(k) > 0:
-				return int(k)
-			else:
-				raise ValueError(bad_k_msg)
-
-		except (TypeError, ValueError):
-			raise ValueError(bad_k_msg)
+		return metric_fn, r
 
 	def get_dictionary_of_valid_scores(self, df):
 		"""
@@ -89,11 +88,15 @@ class DistanceCollaborativeFilter:
 		Take transpose because to_dict() uses columns as main keys but we assume questions are columns
 		"""	
 		scores = df.transpose().to_dict()
-		for stu in scores:
-			scores[stu] = { key : value for key, value in scores[stu].iteritems() if pd.notnull(value) }
+		for student in scores:
+			scores[student] = { key : value for key, value in scores[student].iteritems() if pd.notnull(value) }
 		return scores
 
-	def fast_pearson_similarity(self, scores1, scores2):
+	"""
+	Distance methods
+	"""
+
+	def fast_pearson_distance(self, scores1, scores2):
 		"""
 		Approximate Pearson r value for overlapping question scores
 		Requires single pass through data
@@ -120,7 +123,7 @@ class DistanceCollaborativeFilter:
 		else:
 			return (sum_xy - (sum_x * sum_y) / n) / denom
 
-	def pearson_similarity(self, scores1, scores2):
+	def pearson_distance(self, scores1, scores2):
 		"""
 		Pearson r value for overlapping question scores
 
@@ -135,7 +138,7 @@ class DistanceCollaborativeFilter:
 		else:
 			return 0
 
-	def minkowski_similarity(self, scores1, scores2):
+	def minkowski_distance(self, scores1, scores2):
 		"""
 		Minkowski distance for overlapping question scores
 		Params: both are dictionaries of scores of the form: { question1_id : score1, question2_id : score2, ... }
@@ -148,7 +151,7 @@ class DistanceCollaborativeFilter:
 		else:
 			return 0
 
-	def cosine_similarity(self, scores1, scores2):
+	def cosine_distance(self, scores1, scores2):
 		"""
 		Cosine of angle between overlapping question score vectors
 
@@ -168,45 +171,79 @@ class DistanceCollaborativeFilter:
 				return dot_prod(xs,ys)/(norm_x*norm_y)
 		return 0
 
-	def get_k_nearest_neighbors(self, student):
+	"""
+	Prediction methods
+	"""
+
+	def get_k_nearest_neighbors(self, student, dbg=False):
 		"""
 		Get k of the nearest neighbors by the given metric sorted from closest
 		
 		To Do:
-			Implement with a max heap of size k for better efficieny
+			Implement with max heap for Minkowski metric
 		"""
+		#For metrics where larger measures mean higher similarity use a min heap of self.k elements
+		#For now, only Minkowski metric gives smaller measures for higher similarity 
+		if dbg:
+			use_min_heap = False
+		else:
+			use_min_heap = (self.metric_fn != self.minkowski_distance)
+
 		nbrs = []
 		for nbr in self.scores:
 			if nbr != student:
 				distance = self.metric_fn(self.scores[nbr], self.scores[student])
-				if pd.notnull(distance): #because Pearson will return NaN if any std dev is 0
-					nbrs.append((nbr, distance))
-		nbrs.sort(key = lambda nbr_tuple : nbr_tuple[1], reverse=True)
+				if pd.notnull(distance):
+					if use_min_heap:
+						if len(nbrs) < self.k:
+							heappush(nbrs, (distance, nbr))
+						elif distance > nbrs[0][0]:
+							heappushpop(nbrs, (distance, nbr))
+					else:
+						nbrs.append((distance, nbr))
+
+		if not use_min_heap:
+			nbrs.sort()
+
 		return nbrs[:self.k]
 
-	def predict_student(self, student):
+	def predict_student(self, student, metric, k, r=None):
 		"""
 		Predict question scores for a given student using weighted average of scores of k nearest neighbors
+
+		Params:
+			@student: student identifier from df
+
+			@metric: metric to use in computing k nearest neighbors
+			
+			@k: number of nearest neighbors to use for predictions
+
+			@r: 
+				parameter for Minkowski metric: 1 = Manhattan, 2 = Euclidean 
+				Throws ValueError if not (convertable to) a positive int
 
 		To Do:
 			If totalDistance == 0 use simple average of all contributing neighbor scores, not max
 		"""
+		self.k = self.check_and_get_k_value(k)
+		self.metric_fn, self.r = self.check_and_get_metric(metric, r)
+
 		predictions = {}
 		k_nbrs = self.get_k_nearest_neighbors(student)
 		stu_scores = self.scores[student]
 		totalDistance = 0.0
 
 		for i in range(self.k):
-			totalDistance += k_nbrs[i][1]
+			totalDistance += k_nbrs[i][0]
 
 		for i in range(self.k):
 			if totalDistance != 0:
-				weight = k_nbrs[i][1] / totalDistance
+				weight = k_nbrs[i][0] / totalDistance
 			else:
 				#set dummy value and keep best prediction found
 				weight = -1 
 			
-			nbr = k_nbrs[i][0]
+			nbr = k_nbrs[i][1]
 			nbr_scores = self.scores[nbr]
 
 			#Iterate over neighbors scores which student has not answered
@@ -228,10 +265,40 @@ class DistanceCollaborativeFilter:
 
 		return predictions
 
-	def predict(self):
+	def predict(self, metric, k, r=None):
 		"""
 		Return predicted question scores for all students using k nearest neighbors
+
+		Params:
+			@metric: metric to use in computing k nearest neighbors
+
+			@k: number of nearest neighbors to use for predictions
+
+			@r: 
+				parameter for Minkowski metric: 1 = Manhattan, 2 = Euclidean 
+				Throws ValueError if not (convertable to) a positive int
 		"""
-		for student in scores:
-			self.predictions[student] = predict_student(student)
+		self.k = self.check_and_get_k_value(k)
+		self.metric_fn, self.r = self.check_and_get_metric(metric, r)
+
+		for student in self.scores:
+			self.predictions[student] = self.predict_student(student, metric, k, r)
 		return self.predictions
+
+	"""
+	Cleanup methods
+	"""
+
+	def round(self, decimals=0, inplace=True):
+		"""
+		Round all the values in the predictions dictionary to the specified decimals
+		"""
+		if inplace:
+			preds = self.predictions
+		else:
+			preds = {}
+
+		for student in self.predictions:
+			preds[student] = { key : np.around(value, decimals=decimals) for key, value in self.predictions[student].iteritems() }
+
+		return preds

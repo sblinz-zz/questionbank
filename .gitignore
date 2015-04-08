@@ -4,3 +4,4 @@
 .ipynb_checkpoints/
 recommender.py
 mf.py
+filteringdataPearson.py
