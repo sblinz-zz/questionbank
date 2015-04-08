@@ -2,15 +2,17 @@
 
 ## Project Description
 
-A machine learning library for analyzing test question data. Analyze, recommend effective questions, and predict student responses.
+A machine learning library for analyzing test question data. Analyze, predict student responses, recommend effective questions
 
 ## Design Notes
 
-Designed for data with samples containing student id, question id, score, and (optionally) maximum possible scores for each question.
+Built around pandas DataFrames and designed for raw data with samples representing individual student responses on specific questions.
 
 ### Ingest
 
 -Reshape data to view questions as features contributing to student grades.
+
+-Add question difficulty ratings
 
 -Add maximum possible score per question for weighted grading.
 
@@ -22,11 +24,13 @@ Designed for data with samples containing student id, question id, score, and (o
 
 -Plot histograms and desnity scatter plots of variables.
 
-### Data Completion
+### Response Prediction and Data Completion
 
 With a question bank containing many questions, most students will only have attempted a select number. Since some of the more interesting recommendation methods require complete data, we consider data completion using means
 
--Column or row mean-based completion
+-Imputation (column or row mean-based completion)
+-Distance Collaborative Filtering (supproting Pearson, Minkowski, and Cosine similarity metrics)
+-Latent Collaborative Filtering (Matrix Factorization)
 
 ### Recommendation
 
@@ -37,7 +41,3 @@ By viewing each question as a feature contributing to a students overall accurac
 -Linear Regression
 
 -Random Forest
-
-### Prediction
-
-Predict student scores on a given question using results from other students. Details TBD.

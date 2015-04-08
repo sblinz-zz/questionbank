@@ -14,7 +14,7 @@ from matplotlib import cm as cm
 from scipy.stats import gaussian_kde
 import numpy as np
 
-def series_hist(ser, xlabel):
+def series_hist(ser, xlabel, show_pdf=True):
 	"""
 	Plot histogram of Series object and approximating Guassian KDE PDF
 	"""
@@ -27,10 +27,10 @@ def series_hist(ser, xlabel):
 	ax1.set_ylabel("Frequency", color='burlywood')
 
 	density = gaussian_kde(ser.values)
-
-	ax2 = ax1.twinx()
-	ax2.plot(xs,density(xs), color='crimson', linewidth=2, label="Fit")
-	ax2.set_ylabel('Gaussian KDE', color='crimson')
+	if show_pdf:
+		ax2 = ax1.twinx()
+		ax2.plot(xs,density(xs), color='crimson', linewidth=2, label="Fit")
+		ax2.set_ylabel('Gaussian KDE', color='crimson')
 
 	plt.title(xlabel)
 	plt.show()

@@ -124,7 +124,7 @@ class QuestionBank:
 	Plot Methods
 	"""
 
-	def plot_hists(self, plot_num_attempted=True, plot_total_scores=False):
+	def plot_hists(self, plot_num_attempted=False, plot_total_scores=False):
 		"""
 		Histograms of 
 			grades
@@ -133,7 +133,7 @@ class QuestionBank:
 		"""
 		plot.series_hist(self.grades_df['grade'], "Grade")
 		if plot_num_attempted:
-			plot.series_hist(self.grades_df['attempted'], "No. of Questions Attempted")
+			plot.series_hist(self.grades_df['attempted'], "No. of Questions Attempted", show_pdf=False)
 		if plot_total_scores:
 			plot.series_hist(self.grades_df['total score'], "Total Scores", "Total Score")
 
