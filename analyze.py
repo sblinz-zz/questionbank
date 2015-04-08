@@ -17,13 +17,13 @@ def normalize_scores(df, max_scores):
 	"""
 	return df.apply(lambda row : row/max_scores, axis=1) 
 
-def get_aux_score_data(df, suppress_total_score=True):
+def get_aux_score_data(df, include_total_score=True):
 	"""
 	Derive auxiliary score data
 	"""
 	grades_df = pd.DataFrame()
 	grades_df['attempted'] = df.count(axis=1)
-	if not suppress_total_score:
+	if include_total_score:
 		grades_df['total score'] = df.sum(axis=1)
 	return grades_df
 

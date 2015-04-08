@@ -3,7 +3,9 @@
 #
 # The Question Bank
 #	- A machine learning library for analyzing student test question data
-#	- Analyze, Recommend Effective Questions, Predict Student Responses
+#		- Analyze
+#		- Recommend Effective Questions
+#		- Predict Student Responses
 # 
 # By Sam Blinstein, March-April 2015
 # 
@@ -99,13 +101,13 @@ class QuestionBank:
 		except AttributeError:
 			print "[Err] Can't normalize scores: no maximum scores defined. Use AddMaxScores()."
 
-	def grade(self, suppress_total_score=True):
+	def grade(self, include_total_score=False):
 		"""
 		Compute auxiliary score data and grades
 		If scores were normalized or max scores are not defined, report accuracy as average score on attempted questions
 		Otherwise report accuracy as the ratio of total score to max possible score on attempted questions
 		"""
-		self.grades_df = an.get_aux_score_data(self.df, suppress_total_score=suppress_total_score)
+		self.grades_df = an.get_aux_score_data(self.df, include_total_score=include_total_score)
 
 		if not self.normalized:
 			try:
@@ -131,7 +133,7 @@ class QuestionBank:
 		"""
 		plot.series_hist(self.grades_df['grade'], "Grade")
 		if plot_num_attempted:
-			plot.series_hist(self.grades_df['attepmted'], "No. of Questions Attempted")
+			plot.series_hist(self.grades_df['attempted'], "No. of Questions Attempted")
 		if plot_total_scores:
 			plot.series_hist(self.grades_df['total score'], "Total Scores", "Total Score")
 
@@ -145,3 +147,47 @@ class QuestionBank:
 	"""
 	Prediction Methods
 	"""
+	def load_DCF(self):
+		"""
+		Instantiate an instance of the DistanceCollaborativeFilter and load our data
+		"""
+		self.dcf= pred.DistanceCollaborativeFilter(self.df)
+
+	def get_DCF_prediction_df(self, metric, k, r=None):
+		"""
+		Get a copy of the internal DataFrame with missing values filled in using distance collaborative filtering
+
+		Params:
+			@metric: metric to use in computing k nearest neighbors
+			@k: number of nearest neighbors to use for predictions
+			@r: parameter for Minkowski metric: 1 = Manhattan, 2 = Euclidean
+		"""
+		predictions =  self.dcf.predict(metric, k, r)
+		pred_df = self.df.copy(deep=True)
+		#Add predicted values to pred_df
+		for student in predictions:
+			for question in predictions[student]:
+				pred_df.ix[student,question] = predictions[student][question]
+		return pred_df
+
+	def get_DCF_prediction_student(self, student, metric, k, r=None):
+		"""
+		Get predictions for an individual student using distance collaborative filtering
+
+		Params:
+			@metric: metric to use in computing k nearest neighbors
+			@k: number of nearest neighbors to use for predictions
+			@r: parameter for Minkowski metric: 1 = Manhattan, 2 = Euclidean
+		"""
+		return self.dcf.predict_student(student, metric, k)
+
+	"""
+	Selection Methods
+	"""
+	def get_questions_by_variance_ceiling(self, var):
+		"""
+		Return a list of question id's whose variance is below the argument
+		"""
+		var_ser = self.df.var(axis=0) #make a series of the variance of each question (column)
+		return var_ser.loc[var_ser < var].index
+
