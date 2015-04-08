@@ -29,7 +29,9 @@ Built around pandas DataFrames and designed for raw data with samples representi
 With a question bank containing many questions, most students will only have attempted a select number. Since some of the more interesting recommendation methods require complete data, we consider data completion using means
 
 -Imputation (column or row mean-based completion)
+
 -Distance Collaborative Filtering (supproting Pearson, Minkowski, and Cosine similarity metrics)
+
 -Latent Collaborative Filtering (Matrix Factorization)
 
 ### Recommendation
